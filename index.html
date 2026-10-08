@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>TurtleNeck Fight</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: #071510; font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #e0ffe8; touch-action: none; user-select: none;
+    }
+    #canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+    #ui {
+      position: absolute; inset: 0; pointer-events: none; z-index: 20;
+    }
+    .panel {
+      position: absolute;
+      background: rgba(8, 25, 18, 0.82);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(60, 180, 120, 0.3);
+      border-radius: 14px;
+      padding: 12px 16px;
+      pointer-events: auto;
+    }
+    #hud-top {
+      top: 14px; left: 14px; right: 14px;
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 12px; pointer-events: none;
+    }
+    #title-box {
+      font-size: 15px; letter-spacing: 1.2px; font-weight: 600; color: #7dffa0;
+    }
+    #title-box span { display: block; font-size: 11px; opacity: 0.55; margin-top: 2px; letter-spacing: 0.4px; }
+    #score-box {
+      text-align: right; font-size: 13px;
+    }
+    #score-amount {
+      font-size: 20px; font-weight: 700; color: #a0ffc0;
+      text-shadow: 0 0 10px rgba(100, 255, 160, 0.4);
+    }
+    #score-label { font-size: 11px; opacity: 0.6; letter-spacing: 0.5px; }
+    #stats {
+      bottom: 14px; left: 14px; font-size: 12px; line-height: 1.55; color: #80c0a0;
+    }
+    #stats kbd {
+      background: rgba(40, 140, 90, 0.25);
+      border: 1px solid rgba(80, 200, 140, 0.35);
+      border-radius: 4px; padding: 1px 5px; font-size: 11px; color: #b0ffd0;
+    }
+    #round-info {
+      top: 14px; left: 50%; transform: translateX(-50%);
+      text-align: center; font-size: 13px; pointer-events: none;
+    }
+    #killfeed {
+      position: absolute; top: 70px; right: 14px;
+      display: flex; flex-direction: column; gap: 4px;
+      align-items: flex-end; pointer-events: none;
+    }
+    .kill-msg {
+      background: rgba(10, 30, 20, 0.8);
+      border-left: 3px solid #50d080;
+      padding: 4px 10px; font-size: 12px; color: #c0ffd8;
+      animation: fadeout 3.2s forwards;
+    }
+    @keyframes fadeout {
+      0% { opacity: 1; transform: translateX(0); }
+      70% { opacity: 1; }
+      100% { opacity: 0; transform: translateX(20px); }
+    }
+    #overlay {
+      position: absolute; inset: 0;
+      background: rgba(4, 14, 10, 0.9);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 30; pointer-events: auto;
+    }
+    #overlay h1 {
+      font-size: 38px; letter-spacing: 3px; color: #7dffa0;
+      text-shadow: 0 0 28px rgba(80, 220, 140, 0.55);
+      margin-bottom: 8px;
+    }
+    #overlay p { color: #70b090; margin-bottom: 28px; font-size: 15px; }
+    .btn {
+      background: linear-gradient(135deg, #1a8a55, #2ec87a);
+      border: none; color: white; font-size: 16px; font-weight: 600;
+      padding: 14px 36px; border-radius: 12px; cursor: pointer;
+      box-shadow: 0 4px 24px rgba(40, 180, 100, 0.4);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .btn:hover { transform: scale(1.04); box-shadow: 0 6px 30px rgba(50, 200, 120, 0.55); }
+    .btn:active { transform: scale(0.98); }
+    #mobile-controls {
+      display: none; position: absolute; bottom: 20px; left: 0; right: 0;
+      justify-content: space-between; padding: 0 20px; pointer-events: none;
+    }
+    .fire-btn {
+      width: 70px; height: 70px; border-radius: 50%;
+      background: rgba(40, 140, 90, 0.3);
+      border: 2px solid rgba(80, 200, 140, 0.45);
+      pointer-events: auto;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; color: #b0ffd0; font-weight: 600;
+    }
+    @media (max-width: 700px) {
+      #stats { display: none; }
+      #mobile-controls { display: flex; }
+      #overlay h1 { font-size: 26px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+
+  <div id="ui">
+    <div id="hud-top">
+      <div class="panel" id="title-box">
+        TURTLENECK FIGHT
+        <span>SHELL-SHOCKED ARENA</span>
+      </div>
+      <div class="panel" id="score-box">
+        <div id="score-amount">0</div>
+        <div id="score-label">KILLS</div>
+      </div>
+    </div>
+
+    <div class="panel" id="round-info">
+      <div id="round-text">Round 1</div>
+      <div id="alive-text" style="font-size:11px;opacity:0.6;margin-top:2px">—</div>
+    </div>
+
+    <div id="killfeed"></div>
+
+    <div class="panel" id="stats">
+      <div><kbd>WASD</kbd> Move</div>
+      <div><kbd>Mouse</kbd> Aim & Shoot</div>
+      <div><kbd>1 / 2 / 3</kbd> Switch weapon</div>
+      <div><kbd>R</kbd> Restart round</div>
+    </div>
+
+    <div id="mobile-controls">
+      <div></div>
+      <div class="fire-btn" id="fire-btn">FIRE</div>
+    </div>
+  </div>
+
+  <div id="overlay">
+    <h1>TURTLENECK FIGHT</h1>
+    <p>Turtles with guns. Last shell standing wins.</p>
+    <button class="btn" id="start-btn">ENTER ARENA</button>
+  </div>
+
+  <script>
+    // ============================================================
+    // TURTLENECK FIGHT — Turtle Arena Shooter
+    // ============================================================
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let W, H, dpr;
+
+    function resize() {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      W = window.innerWidth;
+      H = window.innerHeight;
+      canvas.width = W * dpr;
+      canvas.height = H * dpr;
+      canvas.style.width = W + 'px';
+      canvas.style.height = H + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    const rand = (a, b) => a + Math.random() * (b - a);
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const angleTo = (a, b) => Math.atan2(b.y - a.y, b.x - a.x);
+
+    let kills = 0;
+    let round = 1;
+    let gameActive = false;
+
+    const weapons = [
+      { name: 'Shell Shot', dmg: 20, speed: 9.5, cooldown: 220, color: '#60e090', spread: 0.05 },
+      { name: 'Scatter',    dmg: 10, speed: 8,   cooldown: 380, color: '#ff9060', spread: 0.32 },
+      { name: 'Sniper',     dmg: 48, speed: 18,  cooldown: 720, color: '#60d0ff', spread: 0.012 }
+    ];
+
+    const turtlePalettes = [
+      { shell: '#2a8a4a', body: '#3cb86a', belly: '#a8e0b8', eye: '#1a3a20' },
+      { shell: '#3a6a9a', body: '#4a8aba', belly: '#a0c8e0', eye: '#1a2a40' },
+      { shell: '#8a5a2a', body: '#ba7a3a', belly: '#e0c0a0', eye: '#3a2a10' },
+      { shell: '#6a3a8a', body: '#8a5aba', belly: '#c8a0e0', eye: '#2a1a3a' },
+      { shell: '#8a3a4a', body: '#ba5a6a', belly: '#e0a0b0', eye: '#3a1a20' },
+      { shell: '#2a7a7a', body: '#3aaa9a', belly: '#a0e0d0', eye: '#1a3a35' }
+    ];
+
+    class Turtle {
+      constructor(x, y, isHuman = false) {
+        this.x = x; this.y = y;
+        this.vx = 0; this.vy = 0;
+        this.r = 18;
+        this.hp = 100; this.maxHp = 100;
+        this.angle = 0;
+        this.isHuman = isHuman;
+        this.alive = true;
+        this.weapon = 0;
+        this.cooldown = 0;
+        this.name = isHuman ? 'You' : `Turtle-${Math.floor(rand(10,99))}`;
+        this.score = 0;
+        this.respawnTimer = 0;
+        this.palette = isHuman
+          ? { shell: '#1a9a4a', body: '#2ec86a', belly: '#b0f0c0', eye: '#0a2a15' }
+          : turtlePalettes[Math.floor(rand(0, turtlePalettes.length))];
+        this.aiTarget = null;
+        this.aiTimer = 0;
+        this.aiStrafe = rand(-1, 1);
+      }
+
+      update(dt) {
+        if (!this.alive) {
+          this.respawnTimer -= dt;
+          if (this.respawnTimer <= 0 && !this.isHuman) this.respawn();
+          return;
+        }
+
+        this.vx *= 0.90;
+        this.vy *= 0.90;
+        this.x += this.vx;
+        this.y += this.vy;
+
+        this.x = clamp(this.x, this.r + 12, W - this.r - 12);
+        this.y = clamp(this.y, this.r + 12, H - this.r - 12);
+
+        if (this.cooldown > 0) this.cooldown -= dt;
+        if (!this.isHuman) this.ai(dt);
+      }
+
+      ai(dt) {
+        this.aiTimer -= dt;
+        if (this.aiTimer <= 0) {
+          this.aiTimer = rand(500, 1100);
+          let best = null, bestD = 9999;
+          for (const p of turtles) {
+            if (p === this || !p.alive) continue;
+            const d = dist(this, p);
+            if (d < bestD) { bestD = d; best = p; }
+          }
+          this.aiTarget = best;
+          this.aiStrafe = rand(-1, 1);
+        }
+
+        if (this.aiTarget && this.aiTarget.alive) {
+          const a = angleTo(this, this.aiTarget);
+          this.angle = a;
+          const d = dist(this, this.aiTarget);
+
+          if (d > 200) {
+            this.vx += Math.cos(a) * 0.28;
+            this.vy += Math.sin(a) * 0.28;
+          } else if (d < 100) {
+            this.vx -= Math.cos(a) * 0.22;
+            this.vy -= Math.sin(a) * 0.22;
+          }
+          this.vx += Math.cos(a + Math.PI/2) * this.aiStrafe * 0.18;
+          this.vy += Math.sin(a + Math.PI/2) * this.aiStrafe * 0.18;
+
+          if (d < 400 && this.cooldown <= 0 && Math.random() < 0.035) {
+            this.shoot();
+          }
+        }
+      }
+
+      shoot() {
+        if (!this.alive || this.cooldown > 0) return;
+        const w = weapons[this.weapon];
+        this.cooldown = w.cooldown;
+
+        const count = w.name === 'Scatter' ? 5 : 1;
+        for (let i = 0; i < count; i++) {
+          const spread = (Math.random() - 0.5) * w.spread * 2;
+          const a = this.angle + spread;
+          bullets.push({
+            x: this.x + Math.cos(a) * (this.r + 8),
+            y: this.y + Math.sin(a) * (this.r + 8),
+            vx: Math.cos(a) * w.speed,
+            vy: Math.sin(a) * w.speed,
+            dmg: w.dmg,
+            life: 100,
+            owner: this,
+            color: w.color,
+            r: w.name === 'Sniper' ? 4 : 3.2
+          });
+        }
+
+        for (let i = 0; i < 5; i++) {
+          particles.push({
+            x: this.x + Math.cos(this.angle) * 22,
+            y: this.y + Math.sin(this.angle) * 22,
+            vx: Math.cos(this.angle + rand(-0.4,0.4)) * rand(1,2.5),
+            vy: Math.sin(this.angle + rand(-0.4,0.4)) * rand(1,2.5),
+            life: 18, max: 18, r: rand(1.5,3), color: w.color
+          });
+        }
+      }
+
+      takeDamage(amount, attacker) {
+        if (!this.alive) return;
+        this.hp -= amount;
+        for (let i = 0; i < 7; i++) {
+          particles.push({
+            x: this.x, y: this.y,
+            vx: rand(-2.5,2.5), vy: rand(-2.5,2.5),
+            life: 22, max: 22, r: rand(2,3.5), color: this.palette.body
+          });
+        }
+        if (this.hp <= 0) this.die(attacker);
+      }
+
+      die(killer) {
+        this.alive = false;
+        this.respawnTimer = this.isHuman ? 99999 : 3000;
+        for (let i = 0; i < 28; i++) {
+          const a = rand(0, Math.PI*2);
+          particles.push({
+            x: this.x, y: this.y,
+            vx: Math.cos(a) * rand(1.5,6),
+            vy: Math.sin(a) * rand(1.5,6),
+            life: rand(25,55), max: 50, r: rand(2,4.5),
+            color: this.palette.shell
+          });
+        }
+        if (killer && killer.isHuman) {
+          kills++;
+          updateScore();
+          addKillfeed(`${killer.name} cracked ${this.name}`);
+          killer.score++;
+        } else if (killer) {
+          addKillfeed(`${killer.name} cracked ${this.name}`);
+        }
+        checkRoundEnd();
+      }
+
+      respawn() {
+        this.alive = true;
+        this.hp = this.maxHp;
+        this.x = rand(90, W-90);
+        this.y = rand(90, H-90);
+        this.vx = 0; this.vy = 0;
+      }
+
+      draw() {
+        if (!this.alive) return;
+        const p = this.palette;
+        const s = this.r;
+
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+
+        // glow
+        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, s * 2.8);
+        g.addColorStop(0, p.body + '55');
+        g.addColorStop(1, 'transparent');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(0, 0, s * 2.8, 0, Math.PI*2);
+        ctx.fill();
+
+        // shell
+        ctx.beginPath();
+        ctx.ellipse(0, 0, s * 1.05, s * 0.85, 0, 0, Math.PI*2);
+        ctx.fillStyle = p.shell;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // shell pattern
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(-s*0.5, 0); ctx.lineTo(s*0.5, 0);
+        ctx.moveTo(0, -s*0.45); ctx.lineTo(0, s*0.45);
+        ctx.moveTo(-s*0.3, -s*0.3); ctx.lineTo(s*0.3, s*0.3);
+        ctx.moveTo(s*0.3, -s*0.3); ctx.lineTo(-s*0.3, s*0.3);
+        ctx.stroke();
+
+        // head
+        ctx.beginPath();
+        ctx.ellipse(s * 0.95, 0, s * 0.42, s * 0.36, 0, 0, Math.PI*2);
+        ctx.fillStyle = p.body;
+        ctx.fill();
+
+        // eyes
+        ctx.fillStyle = p.eye;
+        ctx.beginPath();
+        ctx.arc(s * 1.15, -s * 0.12, s * 0.11, 0, Math.PI*2);
+        ctx.arc(s * 1.15,  s * 0.12, s * 0.11, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(s * 1.18, -s * 0.15, s * 0.04, 0, Math.PI*2);
+        ctx.arc(s * 1.18,  s * 0.09, s * 0.04, 0, Math.PI*2);
+        ctx.fill();
+
+        // legs
+        ctx.fillStyle = p.body;
+        const legR = s * 0.22;
+        ctx.beginPath(); ctx.arc(-s*0.55, -s*0.7, legR, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(-s*0.55,  s*0.7, legR, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc( s*0.25, -s*0.75, legR, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc( s*0.25,  s*0.75, legR, 0, Math.PI*2); ctx.fill();
+
+        // belly
+        ctx.beginPath();
+        ctx.ellipse(-s*0.15, 0, s*0.45, s*0.55, 0, 0, Math.PI*2);
+        ctx.fillStyle = p.belly + '99';
+        ctx.fill();
+
+        ctx.restore();
+
+        // HP bar
+        if (this.hp < this.maxHp) {
+          const bw = 30, bh = 4;
+          ctx.fillStyle = 'rgba(0,0,0,0.5)';
+          ctx.fillRect(this.x - bw/2, this.y - this.r - 14, bw, bh);
+          ctx.fillStyle = this.hp > 40 ? '#60e090' : '#ff6060';
+          ctx.fillRect(this.x - bw/2, this.y - this.r - 14, bw * (this.hp/this.maxHp), bh);
+        }
+
+        if (!this.isHuman) {
+          ctx.fillStyle = 'rgba(180,255,200,0.55)';
+          ctx.font = '10px system-ui';
+          ctx.textAlign = 'center';
+          ctx.fillText(this.name, this.x, this.y - this.r - 20);
+        }
+      }
+    }
+
+    let turtles = [];
+    let bullets = [];
+    let particles = [];
+    let obstacles = [];
+
+    function createObstacles() {
+      obstacles = [];
+      const count = Math.floor(rand(5, 8));
+      for (let i = 0; i < count; i++) {
+        obstacles.push({
+          x: rand(120, W-120),
+          y: rand(120, H-120),
+          w: rand(50, 100),
+          h: rand(50, 100)
+        });
+      }
+    }
+
+    function spawnBots(n) {
+      for (let i = 0; i < n; i++) {
+        turtles.push(new Turtle(rand(80, W-80), rand(80, H-80), false));
+      }
+    }
+
+    const keys = {};
+    let mouse = { x: 0, y: 0, down: false };
+
+    window.addEventListener('keydown', e => {
+      keys[e.code] = true;
+      if (!human) return;
+      if (e.code === 'Digit1') human.weapon = 0;
+      if (e.code === 'Digit2') human.weapon = 1;
+      if (e.code === 'Digit3') human.weapon = 2;
+      if (e.code === 'KeyR' && gameActive) startRound();
+    });
+    window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+    canvas.addEventListener('pointermove', e => {
+      mouse.x = e.clientX; mouse.y = e.clientY;
+    });
+    canvas.addEventListener('pointerdown', e => {
+      mouse.down = true;
+      mouse.x = e.clientX; mouse.y = e.clientY;
+    });
+    canvas.addEventListener('pointerup', () => { mouse.down = false; });
+
+    document.getElementById('fire-btn').addEventListener('pointerdown', e => {
+      e.preventDefault();
+      mouse.down = true;
+    });
+    document.getElementById('fire-btn').addEventListener('pointerup', () => { mouse.down = false; });
+
+    function updateScore() {
+      document.getElementById('score-amount').textContent = kills;
+    }
+    function addKillfeed(msg) {
+      const el = document.createElement('div');
+      el.className = 'kill-msg';
+      el.textContent = msg;
+      document.getElementById('killfeed').prepend(el);
+      setTimeout(() => el.remove(), 3200);
+    }
+    function checkRoundEnd() {
+      const alive = turtles.filter(t => t.alive);
+      document.getElementById('alive-text').textContent = `${alive.length} left`;
+      if (alive.length <= 1 && gameActive) {
+        gameActive = false;
+        setTimeout(() => {
+          const won = alive[0] && alive[0].isHuman;
+          showResult(won);
+        }, 900);
+      }
+    }
+    function showResult(won) {
+      const ov = document.getElementById('overlay');
+      ov.style.display = 'flex';
+      ov.innerHTML = `
+        <h1>${won ? 'SHELL YEAH!' : 'CRACKED'}</h1>
+        <p>${won ? 'You are the last turtle standing' : 'Your shell was broken'}</p>
+        <div style="font-size:15px;color:#70b090;margin-bottom:22px">Kills this run: ${kills}</div>
+        <button class="btn" id="next-btn">${won ? 'NEXT ROUND' : 'TRY AGAIN'}</button>
+      `;
+      document.getElementById('next-btn').onclick = () => {
+        if (won) round++;
+        startRound();
+      };
+    }
+
+    let human;
+    function startRound() {
+      document.getElementById('overlay').style.display = 'none';
+      turtles = [];
+      bullets = [];
+      particles = [];
+      createObstacles();
+      human = new Turtle(W/2, H/2, true);
+      turtles.push(human);
+      const botCount = Math.min(3 + Math.floor(round * 0.6), 7);
+      spawnBots(botCount);
+      gameActive = true;
+      document.getElementById('round-text').textContent = `Round ${round}`;
+      document.getElementById('alive-text').textContent = `${turtles.length} left`;
+    }
+
+    document.getElementById('start-btn').onclick = () => {
+      kills = 0;
+      round = 1;
+      updateScore();
+      startRound();
+    };
+
+    let last = performance.now();
+    function frame(now) {
+      const dt = Math.min(now - last, 40);
+      last = now;
+
+      if (gameActive && human && human.alive) {
+        // Lower sensitivity
+        const spd = 0.38;
+        if (keys['KeyW'] || keys['ArrowUp'])    human.vy -= spd;
+        if (keys['KeyS'] || keys['ArrowDown'])  human.vy += spd;
+        if (keys['KeyA'] || keys['ArrowLeft'])  human.vx -= spd;
+        if (keys['KeyD'] || keys['ArrowRight']) human.vx += spd;
+
+        human.angle = Math.atan2(mouse.y - human.y, mouse.x - human.x);
+        if (mouse.down) human.shoot();
+      }
+
+      for (const t of turtles) t.update(dt);
+
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        b.x += b.vx;
+        b.y += b.vy;
+        b.life -= dt * 0.06;
+
+        let hit = false;
+        for (const t of turtles) {
+          if (!t.alive || t === b.owner) continue;
+          if (dist(b, t) < t.r + b.r) {
+            t.takeDamage(b.dmg, b.owner);
+            hit = true;
+            break;
+          }
+        }
+        for (const o of obstacles) {
+          if (b.x > o.x && b.x < o.x + o.w && b.y > o.y && b.y < o.y + o.h) {
+            hit = true; break;
+          }
+        }
+        if (hit || b.life <= 0 || b.x < 0 || b.x > W || b.y < 0 || b.y > H) {
+          bullets.splice(i, 1);
+        }
+      }
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx; p.y += p.vy;
+        p.vx *= 0.96; p.vy *= 0.96;
+        p.life -= dt * 0.06;
+        if (p.life <= 0) particles.splice(i, 1);
+      }
+
+      // Draw
+      ctx.fillStyle = '#071510';
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.strokeStyle = 'rgba(40,100,70,0.07)';
+      ctx.lineWidth = 1;
+      const gs = 70;
+      for (let x = 0; x < W; x += gs) {
+        ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+      }
+      for (let y = 0; y < H; y += gs) {
+        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+      }
+
+      for (const o of obstacles) {
+        ctx.fillStyle = 'rgba(25,50,35,0.9)';
+        ctx.strokeStyle = 'rgba(60,140,90,0.35)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(o.x, o.y, o.w, o.h, 8);
+        ctx.fill(); ctx.stroke();
+      }
+
+      for (const p of particles) {
+        const a = clamp(p.life / p.max, 0, 1);
+        ctx.globalAlpha = a;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r * a, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      for (const b of bullets) {
+        ctx.beginPath();
+        ctx.fillStyle = b.color;
+        ctx.shadowColor = b.color;
+        ctx.shadowBlur = 8;
+        ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      for (const t of turtles) t.draw();
+
+      if (gameActive && human && human.alive) {
+        const w = weapons[human.weapon];
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(W/2 - 55, H - 48, 110, 28);
+        ctx.strokeStyle = w.color;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(W/2 - 55, H - 48, 110, 28);
+        ctx.fillStyle = w.color;
+        ctx.font = '13px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText(w.name, W/2, H - 29);
+      }
+
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
